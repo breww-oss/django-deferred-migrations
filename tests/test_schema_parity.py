@@ -30,11 +30,11 @@ BASE = [
 ]
 
 
-def _drop_everything() -> None:
+def drop_everything() -> None:
     drop_relations(["dm_eq_renamed", "dm_eq_child", "dm_eq_parent"])
 
 
-def _build(operations: list[Operation], run_queue: bool) -> dict[str, object]:
+def build(operations: list[Operation], run_queue: bool) -> dict[str, object]:
     try:
         state = apply_operations("dm_eq", ProjectState(), BASE)
 
@@ -45,17 +45,16 @@ def _build(operations: list[Operation], run_queue: bool) -> dict[str, object]:
             keys = {("dm_eq", f"{number:04d}_step") for number in range(2, len(operations) + 2)}
             result = run_deferred_operations(migration_keys=MigrationKeys(known=keys, applied=keys), sleep=lambda seconds: None)
 
-            # run_deferred_operations reports failures in its result rather than raising
-            # (runner.py:137-141). Without this, a failed or unrunnable row would surface only as a
-            # confusing schema diff that looks like a package bug.
+            # run_deferred_operations reports failures in its RunResult rather than raising, so without these a failed or unrunnable row would surface only as a confusing schema diff that looks like a package bug.
             assert result.failed is None, f"queued row failed: {result.failed}"
             assert not result.blocked, f"queued rows blocked: {result.blocked}"
             assert not result.unknown, f"queued rows unknown: {result.unknown}"
+            assert not result.skipped, f"queued rows skipped: {result.skipped}"
             assert result.ran, "the deferred arm queued nothing, so the comparison proves nothing"
 
         return schema_snapshot(TABLES)
     finally:
-        _drop_everything()
+        drop_everything()
 
 
 @pytest.mark.django_db(transaction=True)
@@ -71,7 +70,7 @@ def _build(operations: list[Operation], run_queue: bool) -> dict[str, object]:
     ],
 )
 def test_the_deferred_operation_ends_at_the_schema_django_builds(native: list[Operation], deferred: list[Operation]) -> None:
-    expected = _build(native, run_queue=False)
-    actual = _build(deferred, run_queue=True)
+    expected = build(native, run_queue=False)
+    actual = build(deferred, run_queue=True)
 
     assert actual == expected

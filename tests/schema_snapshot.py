@@ -5,10 +5,8 @@ from django.db import connection
 from tests.migration_helpers import relation_kind
 
 
-# Columns are keyed by name rather than ordinal position on purpose. PostgreSQL attaches no meaning
-# to column order, and Django's own drop-and-re-add reorders too, so comparing positions would fail
-# on a difference that is not a difference.
-def _columns(table: str) -> list[tuple]:
+# Columns are keyed by name rather than ordinal position on purpose. PostgreSQL attaches no meaning to column order, and Django's own drop-and-re-add reorders too, so comparing positions would fail on a difference that is not a difference.
+def columns(table: str) -> list[tuple]:
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -23,50 +21,43 @@ def _columns(table: str) -> list[tuple]:
         return cursor.fetchall()
 
 
-def _indexes(table: str) -> list[tuple]:
+def indexes(table: str) -> list[tuple]:
     with connection.cursor() as cursor:
         cursor.execute("SELECT c.relname, pg_get_indexdef(i.indexrelid) FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid WHERE i.indrelid = %s::regclass ORDER BY 1", [table])
         return cursor.fetchall()
 
 
-def _constraints(table: str) -> list[tuple]:
+def constraints(table: str) -> list[tuple]:
     with connection.cursor() as cursor:
         cursor.execute("SELECT conname, pg_get_constraintdef(oid), convalidated FROM pg_constraint WHERE conrelid = %s::regclass ORDER BY 1", [table])
         return cursor.fetchall()
 
 
-def _triggers(table: str) -> list[tuple]:
+def triggers(table: str) -> list[tuple]:
     with connection.cursor() as cursor:
         cursor.execute("SELECT tgname, pg_get_triggerdef(oid) FROM pg_trigger WHERE tgrelid = %s::regclass AND NOT tgisinternal ORDER BY 1", [table])
         return cursor.fetchall()
 
 
-def _sequences(table: str) -> list[str]:
+def sequences(table: str) -> list[str]:
     with connection.cursor() as cursor:
         cursor.execute("SELECT c.relname FROM pg_class c JOIN pg_depend d ON d.objid = c.oid JOIN pg_class t ON t.oid = d.refobjid WHERE c.relkind = 'S' AND t.relname = %s ORDER BY 1", [table])
         return [row[0] for row in cursor.fetchall()]
 
 
-# Every function in the schema, not just ones matching a prefix: the package installs trigger
-# functions during the deferred window, and the point of the comparison is that none survive it.
-def _functions() -> list[tuple]:
+# Every function in the schema, not just ones matching a prefix: the package installs trigger functions during the deferred window, and the point of the comparison is that none survive it.
+def functions() -> list[tuple]:
     with connection.cursor() as cursor:
-        # prokind = 'f' restricts this to plain functions. pg_get_functiondef raises on aggregates
-        # and window functions, and nothing should make the snapshot itself a source of errors.
+        # prokind = 'f' restricts this to plain functions. pg_get_functiondef raises on aggregates and window functions, and nothing should make the snapshot itself a source of errors.
         cursor.execute("SELECT p.proname, pg_get_functiondef(p.oid) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = current_schema() AND p.prokind = 'f' ORDER BY 1, 2")
         return cursor.fetchall()
 
 
-def _table_exists(table: str) -> bool:
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT to_regclass(%s) IS NOT NULL", [table])
-        return cursor.fetchone()[0]
+def table_exists(table: str) -> bool:
+    return relation_kind(table) is not None
 
 
-# Each name is dropped by what it actually is. DeferredRenameModel leaves a compatibility view under
-# the old name until the queued drop runs, so a name can be a table in one arm and a view in the
-# other. Neither DROP statement tolerates the other kind even with IF EXISTS ("is not a view" /
-# "is not a table"), and an error raised inside a test's finally would replace the real failure.
+# Each name is dropped by what it actually is. DeferredRenameModel leaves a compatibility view under the old name until the queued drop runs, so a name can be a table in one arm and a view in the other. Neither DROP statement tolerates the other kind even with IF EXISTS ("is not a view" / "is not a table"), and an error raised inside a test's finally would replace the real failure.
 def drop_relations(names: Sequence[str]) -> None:
     with connection.cursor() as cursor:
         for name in names:
@@ -80,10 +71,7 @@ def drop_relations(names: Sequence[str]) -> None:
                 case kind:
                     raise AssertionError(f"Unexpected relation kind {kind!r} for {name}")
 
-        # DROP TABLE removes a table's triggers but not the functions they call (triggers.py:33
-        # creates them as separate objects). These tests are transactional, so a leftover would leak
-        # into every later snapshot's "functions" key. The prefixes are SYNC_PREFIX and FILL_PREFIX
-        # from deferred_migrations/triggers.py:6-7.
+        # DROP TABLE removes a table's triggers but not the functions they call, which install_trigger in deferred_migrations.triggers creates as separate objects. These tests are transactional, so a leftover would leak into every later snapshot's "functions" key. The prefixes are SYNC_PREFIX and FILL_PREFIX from deferred_migrations.triggers.
         cursor.execute("SELECT proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = current_schema() AND (proname LIKE 'dm1\\_sync\\_%' OR proname LIKE 'dm2\\_fill\\_%')")
 
         for (function,) in cursor.fetchall():
@@ -91,19 +79,19 @@ def drop_relations(names: Sequence[str]) -> None:
 
 
 def schema_snapshot(tables: Sequence[str]) -> dict[str, object]:
-    snapshot: dict[str, object] = {"functions": _functions()}
+    snapshot: dict[str, object] = {"functions": functions()}
 
     for table in tables:
-        if not _table_exists(table):
+        if not table_exists(table):
             snapshot[table] = None
             continue
 
         snapshot[table] = {
-            "columns": _columns(table),
-            "indexes": _indexes(table),
-            "constraints": _constraints(table),
-            "triggers": _triggers(table),
-            "sequences": _sequences(table),
+            "columns": columns(table),
+            "indexes": indexes(table),
+            "constraints": constraints(table),
+            "triggers": triggers(table),
+            "sequences": sequences(table),
         }
 
     return snapshot

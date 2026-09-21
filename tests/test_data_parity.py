@@ -30,27 +30,26 @@ BASE = [
 ]
 
 
-# A single %, not %%. psycopg only processes placeholders when params are supplied, and this call
-# passes none, so %% would reach the server literally and fail.
-def _seed() -> None:
+# A single %, not %%. psycopg only processes placeholders when params are supplied, and this call passes none, so %% would reach the server literally and fail.
+def seed() -> None:
     with connection.cursor() as cursor:
         cursor.execute("INSERT INTO dm_dat_row (label, amount) SELECT 'row-' || n, CASE WHEN n % 3 = 0 THEN NULL ELSE n END FROM generate_series(1, 200) AS n")
 
 
-def _contents(table: str) -> list[tuple]:
+def contents(table: str) -> list[tuple]:
     with connection.cursor() as cursor:
         cursor.execute(f"SELECT * FROM {connection.ops.quote_name(table)} ORDER BY id")
         return cursor.fetchall()
 
 
-def _drop_everything() -> None:
+def drop_everything() -> None:
     drop_relations(["dm_dat_renamed", "dm_dat_row"])
 
 
-def _build(operations: list[list[Operation]], run_queue: bool) -> tuple[list[tuple], dict[str, object]]:
+def build(operations: list[list[Operation]], run_queue: bool) -> tuple[list[tuple], dict[str, object]]:
     try:
         state = apply_operations("dm_dat", ProjectState(), BASE)
-        _seed()
+        seed()
 
         for number, group in enumerate(operations, start=2):
             state = apply_operations("dm_dat", state, group, atomic=False, name=f"{number:04d}_step")
@@ -62,14 +61,15 @@ def _build(operations: list[list[Operation]], run_queue: bool) -> tuple[list[tup
             assert result.failed is None, f"queued row failed: {result.failed}"
             assert not result.blocked, f"queued rows blocked: {result.blocked}"
             assert not result.unknown, f"queued rows unknown: {result.unknown}"
+            assert not result.skipped, f"queued rows skipped: {result.skipped}"
+            assert result.ran, "the deferred arm queued nothing, so the comparison proves nothing"
 
-        return _contents("dm_dat_row"), schema_snapshot(["dm_dat_row"])
+        return contents("dm_dat_row"), schema_snapshot(["dm_dat_row"])
     finally:
-        _drop_everything()
+        drop_everything()
 
 
-# The recipe comparison, not the naive one: plain AlterField to null=False fails outright while rows
-# hold NULL, so the native arm is the three-step sequence a careful developer writes by hand.
+# The recipe comparison, not the naive one: plain AlterField to null=False fails outright while rows hold NULL, so the native arm is the three-step sequence a careful developer writes by hand.
 @pytest.mark.django_db(transaction=True)
 def test_the_not_null_operations_match_the_hand_written_safe_recipe() -> None:
     native = [
@@ -81,22 +81,24 @@ def test_the_not_null_operations_match_the_hand_written_safe_recipe() -> None:
         [BackfillNotNull("row", "amount", fill_sql="0"), SetNotNull("row", "amount", models.IntegerField())],
     ]
 
-    expected_rows, expected_schema = _build(native, run_queue=False)
-    actual_rows, actual_schema = _build(deferred, run_queue=True)
+    expected_rows, expected_schema = build(native, run_queue=False)
+    actual_rows, actual_schema = build(deferred, run_queue=True)
 
+    assert len(expected_rows) == 200
     assert actual_rows == expected_rows
     assert actual_schema == expected_schema
 
 
-# DeferredRenameModel renames the table and leaves a view under the old name, so this proves the rows
-# survive the rename and the queued view drop, not that anything carried data across.
+# DeferredRenameModel renames the table and leaves a view under the old name, so this proves the rows survive the rename and the queued view drop, not that anything carried data across.
 @pytest.mark.django_db(transaction=True)
 def test_a_deferred_model_rename_leaves_the_rows_untouched() -> None:
-    state = apply_operations("dm_dat", ProjectState(), BASE)
-    _seed()
-    before = _contents("dm_dat_row")
-
     try:
+        state = apply_operations("dm_dat", ProjectState(), BASE)
+        seed()
+        before = contents("dm_dat_row")
+
+        assert len(before) == 200
+
         apply_operations("dm_dat", state, [DeferredRenameModel("Row", "Renamed")], atomic=False, name="0002_step")
         keys = {("dm_dat", "0002_step")}
         result = run_deferred_operations(migration_keys=MigrationKeys(known=keys, applied=keys), sleep=lambda seconds: None)
@@ -104,14 +106,14 @@ def test_a_deferred_model_rename_leaves_the_rows_untouched() -> None:
         assert result.failed is None, f"queued row failed: {result.failed}"
         assert not result.blocked, f"queued rows blocked: {result.blocked}"
         assert not result.unknown, f"queued rows unknown: {result.unknown}"
+        assert not result.skipped, f"queued rows skipped: {result.skipped}"
         assert result.ran, "the rename queued nothing, so the view drop never ran"
-        assert _contents("dm_dat_renamed") == before
+        assert contents("dm_dat_renamed") == before
     finally:
-        _drop_everything()
+        drop_everything()
 
 
-# The native arm is the hand-written recipe: add the new column, copy the data across in one UPDATE,
-# drop the old column. The deferred arm keeps both columns in step with a trigger across the rollout.
+# The native arm is the hand-written recipe: add the new column, copy the data across in one UPDATE, drop the old column. The deferred arm keeps both columns in step with a trigger across the rollout.
 @pytest.mark.django_db(transaction=True)
 def test_a_column_reshape_matches_the_hand_written_copy_and_drop() -> None:
     new_column = models.BigIntegerField(null=True)
@@ -127,8 +129,9 @@ def test_a_column_reshape_matches_the_hand_written_copy_and_drop() -> None:
         [DeferredRemoveField("row", "amount")],
     ]
 
-    expected_rows, expected_schema = _build(native, run_queue=False)
-    actual_rows, actual_schema = _build(deferred, run_queue=True)
+    expected_rows, expected_schema = build(native, run_queue=False)
+    actual_rows, actual_schema = build(deferred, run_queue=True)
 
+    assert len(expected_rows) == 200
     assert actual_rows == expected_rows
     assert actual_schema == expected_schema
