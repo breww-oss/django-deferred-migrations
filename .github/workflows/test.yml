@@ -130,3 +130,24 @@ jobs:
           node-version: "22"
       - name: Lint every commit message in the pull request
         run: npx --yes -p @commitlint/cli@21 -p @commitlint/config-angular@21 commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose
+
+  # The one check the main branch ruleset requires, so the ruleset never has to list each matrix
+  # cell by name. always() makes it run, and fail, when a needed job failed or was cancelled; a job
+  # it doesn't run after would just be skipped, which a ruleset treats as passing. A job added to
+  # this workflow must be added to needs too, or it won't gate merges.
+  all-checks-pass:
+    if: always()
+    needs: [test, package, lint, commitlint]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless every needed job succeeded or was skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *) exit 1 ;;
+            esac
+          done
