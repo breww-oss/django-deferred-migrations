@@ -116,7 +116,7 @@ Keep `deferred_migrations` above any other app in `INSTALLED_APPS` that ships a 
 
 - Python 3.12 or later
 - Django 5.2, 6.0 or 6.1
-- PostgreSQL 14 or later with Django 5.2 or 6.0, PostgreSQL 15 or later with Django 6.1 (`CREATE OR REPLACE TRIGGER`)
+- PostgreSQL 14 or later (for `CREATE OR REPLACE TRIGGER`) with Django 5.2 or 6.0; PostgreSQL 15 or later with Django 6.1
 - psycopg 3
 
 Other database backends are not supported: `migrate_pre_deploy` and `migrate_post_deploy` raise `ImproperlyConfigured` on them.
@@ -956,7 +956,11 @@ A non-atomic migration commits queue rows as each operation runs but is only rec
 
 ## AI coding assistants
 
-The package ships an [Agent Skills](https://agentskills.io) skill at `deferred_migrations/skills/fixing-deploy-safety/SKILL.md`. It maps every rule ID to its fix with a minimal migration snippet, sets the order of work (`fix_deploy_safety` first, then the rules that need judgement), and explains when a suppression is legitimate. Copy or symlink the `fixing-deploy-safety` directory into your assistant's skills directory, for example `.claude/skills/` for Claude Code.
+The package ships an [Agent Skills](https://agentskills.io) skill at `deferred_migrations/skills/fixing-deploy-safety/SKILL.md`. It maps every rule ID to its fix with a minimal migration snippet, sets the order of work (`fix_deploy_safety` first, then the rules that need judgement), and explains when a suppression is legitimate. Copy or symlink the `fixing-deploy-safety` directory into your assistant's skills directory, for example `.claude/skills/` for Claude Code. In an installed package it sits under site-packages; this prints the directory:
+
+```console
+python -c "import deferred_migrations, pathlib; print(pathlib.Path(deferred_migrations.__file__).parent / 'skills')"
+```
 
 ## Licence
 
