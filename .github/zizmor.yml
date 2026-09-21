@@ -1,0 +1,5 @@
+rules:
+  # Would move release.yml's call of test.yml to the newer `$/` self-repository syntax. The release
+  # workflow only runs on main, so a change to how it calls the tests can't be tried in a pull request.
+  self-repository:
+    disable: true
