@@ -109,4 +109,7 @@ class Command(Underlying):
             source = path.read_text(encoding="utf-8")
 
             if "\n    atomic = False\n" not in source:
+                if "\n    dependencies = [" not in source:
+                    raise CommandError(f"Could not mark {path} non-atomic: add `atomic = False` to its Migration class by hand.")
+
                 path.write_text(source.replace("\n    dependencies = [", "\n    atomic = False\n\n    dependencies = [", 1), encoding="utf-8")

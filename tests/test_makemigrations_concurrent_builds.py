@@ -4,8 +4,10 @@ from django.core.management import call_command
 from django.db import connection
 from django.db import migrations
 from django.db import models
+from django.db.migrations.migration import Migration
 
 from deferred_migrations.autofix import AutoFixer
+from deferred_migrations.management.commands.makemigrations import Command
 from deferred_migrations.operations import AddConstraintConcurrently
 from deferred_migrations.operations import AddFieldConcurrently
 from deferred_migrations.operations import AddIndexConcurrently
@@ -320,3 +322,17 @@ def test_the_generated_migrations_apply_and_pass_the_check(generated_app: Genera
         assert cursor.fetchone() == ("UNIQUE NULLS NOT DISTINCT (name, vessel)",)
 
     assert [finding for finding in check_installed_project() if finding.app_label == TEST_APP] == []
+
+
+@pytest.mark.django_db
+def test_a_non_atomic_migration_without_a_dependencies_anchor_fails_loudly(generated_app: GeneratedMigrations) -> None:
+    anchorless = f'from django.db import migrations\n\n\nclass Migration(migrations.Migration):\n    dependencies = (({TEST_APP!r}, "0001_initial"),)\n\n    operations = []\n'
+    path = generated_app.directory / "0002_anchorless.py"
+    path.write_text(anchorless)
+    migration = Migration("0002_anchorless", TEST_APP)
+    migration.atomic = False
+
+    with pytest.raises(CommandError, match=r"0002_anchorless\.py"):
+        Command().write_non_atomic_flags({TEST_APP: [migration]})
+
+    assert path.read_text() == anchorless
