@@ -61,6 +61,7 @@ dev = [
     "django-linear-migrations>=2,<3",
     "ruff==0.16.7",
     "rich>=15",
+    "python-semantic-release>=10,<11",
 ]
 
 [tool.pytest.ini_options]
@@ -92,3 +93,35 @@ force-single-line = true
 # only direct children and would leave the hand-written migration fixtures linting differently.
 "tests/**" = ["E402", "ARG001", "S101"]
 "**/migrations/*" = ["E501", "ARG001", "RUF001"]
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+commit_parser = "conventional"
+# 0.x is the intended starting point: the first release is 0.1.0, and while on 0.x a
+# BREAKING CHANGE bumps the minor version rather than jumping to 1.0.0.
+allow_zero_version = true
+major_on_zero = false
+tag_format = "v{version}"
+# Same subject shape breww-app's release commits use.
+commit_message = "chore(release): {version} [skip ci]"
+# uv.lock records the project's own version, so it has to move with pyproject.toml or the next
+# `uv sync --locked` fails. $PACKAGE_NAME is provided by PSR.
+build_command = """
+    uv lock --upgrade-package "$PACKAGE_NAME"
+    git add uv.lock
+    uv build
+"""
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+[tool.semantic_release.changelog]
+mode = "update"
+insertion_flag = "<!-- version list -->"
+
+[tool.semantic_release.changelog.default_templates]
+changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.remote]
+type = "github"
