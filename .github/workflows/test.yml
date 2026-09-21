@@ -124,6 +124,6 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: "22"
+          node-version: "24"
       - name: Lint every commit message in the pull request
         run: npx --yes -p @commitlint/cli@21 -p @commitlint/config-angular@21 commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose
