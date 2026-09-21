@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "django-deferred-migrations"
 # Written by python-semantic-release; never edited by hand.
-version = "0.0.0"
+version = "0.1.0"
 description = "Deploy-safe Django migrations for PostgreSQL. Destructive schema changes ship in one pull request and one deploy, and old code keeps working while the new release rolls out."
 readme = "README.md"
 requires-python = ">=3.12"
