@@ -54,6 +54,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
@@ -84,6 +86,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           python-version: "3.12"
@@ -106,12 +110,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           python-version: "3.12"
       - run: uv sync
       - run: uv run ruff check .
       - run: uv run ruff format --check .
+      # Security mistakes in the workflows themselves. The token enables zizmor's online audits,
+      # such as actions pinned to a commit that isn't in the action's repository.
+      - run: uv run zizmor .github
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   # The commit-msg hook only runs where someone installed it. This enforces the same rules on
   # every commit in a pull request, including ones from contributors without pre-commit.
@@ -125,11 +136,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: "24"
       - name: Lint every commit message in the pull request
         run: npx --yes -p @commitlint/cli@21 -p @commitlint/config-angular@21 commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose
+
+  # Fails a pull request that adds a dependency with a known vulnerability of moderate severity or
+  # above, in uv.lock or in the workflows' actions.
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: moderate
 
   # The one check the main branch ruleset requires, so the ruleset never has to list each matrix
   # cell by name. always() makes it run, and fail, when a needed job failed or was cancelled; a job
@@ -137,7 +159,7 @@ jobs:
   # this workflow must be added to needs too, or it won't gate merges.
   all-checks-pass:
     if: always()
-    needs: [test, package, lint, commitlint]
+    needs: [test, package, lint, commitlint, dependency-review]
     runs-on: ubuntu-latest
     steps:
       - name: Fail unless every needed job succeeded or was skipped
