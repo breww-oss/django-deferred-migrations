@@ -21,10 +21,9 @@ jobs:
           - { python: "3.12", django: "6.1", postgres: "16" }
           - { python: "3.13", django: "6.1", postgres: "16" }
           - { python: "3.14", django: "6.1", postgres: "16" }
-          # The PostgreSQL floor claimed by the README, proved against the LOWEST Django in the
-          # matrix. Django enforces its own minimum_database_version at connect time, so pinning
-          # this to a newer Django could fail for reasons unrelated to this package.
+          # The PostgreSQL 14 floor the README claims for Django 5.2 and 6.0; Django 6.1 enforces PostgreSQL 15 through its own minimum_database_version at connect time.
           - { python: "3.13", django: "5.2", postgres: "14" }
+          - { python: "3.13", django: "6.0", postgres: "14" }
 
     name: py${{ matrix.python }} dj${{ matrix.django }} pg${{ matrix.postgres }}
 
@@ -76,6 +75,29 @@ jobs:
 
       - name: Run the suite
         run: uv run --no-sync pytest -q
+
+  # Installs the built wheel, not the source tree, and imports it from outside the checkout, so a package-data file missing from the wheel fails here rather than for users.
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - run: uv build --out-dir "$RUNNER_TEMP/dist"
+      - run: uv venv "$RUNNER_TEMP/venv"
+      - run: uv pip install --python "$RUNNER_TEMP/venv/bin/python" "$RUNNER_TEMP"/dist/*.whl
+      - name: Import the installed package and check its data files
+        working-directory: ${{ runner.temp }}
+        run: |
+          "$RUNNER_TEMP/venv/bin/python" -c "
+          import pathlib, deferred_migrations
+          root = pathlib.Path(deferred_migrations.__file__).parent
+          print(root)
+          assert 'site-packages' in root.parts, root
+          for name in ('skills/fixing-deploy-safety/SKILL.md', 'migrations/max_migration.txt'):
+              assert (root / name).is_file(), f'{name} is missing from the wheel'
+          "
 
   lint:
     runs-on: ubuntu-latest
