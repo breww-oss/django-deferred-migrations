@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.32.4,<2"]
 build-backend = "hatchling.build"
 
 [project]
 name = "django-deferred-migrations"
-# Owned by python-semantic-release from Task 14 onward; never edited by hand.
+# Written by python-semantic-release; never edited by hand.
 version = "0.0.0"
 description = "Deploy-safe Django migrations for PostgreSQL. Destructive schema changes ship in one pull request and one deploy, and old code keeps working while the new release rolls out."
 readme = "README.md"
@@ -78,10 +78,7 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "UP", "DJ", "FA", "PT", "Q", "PIE", "RSE", "RET", "SIM", "TID", "TCH", "INT", "ARG", "FLY", "TRY", "PERF", "FURB", "RUF", "COM", "I", "B"]
-# Copied verbatim from Breww's pyproject.toml:395. The package passes ruff today only under these
-# ignores, so dropping them would demand a rewrite of code this extraction is supposed to move
-# untouched. TRY003 alone fires on nearly every raise in operations.py and schema.py; ARG002 on
-# every database_backwards that ignores arguments; ARG005 on the sleep=lambda in dozens of tests.
+# The codebase is written to these ignores; removing one means rewriting code, not configuration.
 ignore = ["DJ001", "E501", "DJ008", "TRY003", "SIM102", "RUF012", "ARG002", "TRY201", "TRY301", "RET503", "TRY300", "PERF401", "SIM108", "SIM105", "RUF005", "SIM113", "SIM118", "PERF102", "TC003", "TC001", "RET504", "ARG003", "SIM103", "ARG005", "PERF402", "RUF015", "PERF403", "SIM401", "PT007", "PT006", "TC002", "S308", "B904", "COM812"]
 
 [tool.ruff.lint.isort]
@@ -96,13 +93,11 @@ force-single-line = true
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
-commit_parser = "conventional"
 # 0.x is the intended starting point: the first release is 0.1.0, and while on 0.x a
 # BREAKING CHANGE bumps the minor version rather than jumping to 1.0.0.
 allow_zero_version = true
 major_on_zero = false
-tag_format = "v{version}"
-# Same subject shape breww-app's release commits use.
+# A non-releasing type with [skip ci], so the release commit never triggers another release.
 commit_message = "chore(release): {version} [skip ci]"
 # uv.lock records the project's own version, so it has to move with pyproject.toml or the next
 # `uv sync --locked` fails. $PACKAGE_NAME is provided by PSR.
