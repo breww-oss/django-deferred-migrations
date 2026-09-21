@@ -1,0 +1,94 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "django-deferred-migrations"
+# Owned by python-semantic-release from Task 14 onward; never edited by hand.
+version = "0.0.0"
+description = "Deploy-safe Django migrations for PostgreSQL. Destructive schema changes ship in one pull request and one deploy, and old code keeps working while the new release rolls out."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Breww team", email = "hello@breww.com" }]
+keywords = ["django", "migrations", "postgresql", "zero-downtime", "deploy"]
+dependencies = [
+    "django>=5.2,<6.2",
+    "psycopg>=3",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Django :: 5.2",
+    "Framework :: Django :: 6.0",
+    "Framework :: Django :: 6.1",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.optional-dependencies]
+rich = ["rich>=15"]
+
+[project.urls]
+Homepage = "https://github.com/breww-oss/django-deferred-migrations"
+Source = "https://github.com/breww-oss/django-deferred-migrations"
+Changelog = "https://github.com/breww-oss/django-deferred-migrations/blob/main/CHANGELOG.md"
+Issues = "https://github.com/breww-oss/django-deferred-migrations/issues"
+
+# Mandatory. Hatchling's default file selection looks for a directory matching the normalised
+# project name (django_deferred_migrations), which does not exist. Without this it raises
+# "Unable to determine which files to ship inside the wheel" and uv build fails.
+[tool.hatch.build.targets.wheel]
+packages = ["deferred_migrations"]
+
+[tool.hatch.build.targets.sdist]
+include = ["deferred_migrations", "tests", "README.md", "LICENSE", "CHANGELOG.md"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9,<10",
+    "pytest-django>=4.5.2,<5",
+    "pytest-timeout>=2.4,<3",
+    "psycopg[binary]>=3.2.3,<4",
+    "django-linear-migrations>=2,<3",
+    "ruff==0.16.7",
+    "rich>=15",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+# Mandatory. pytest-django imports the settings module from a plain hookimpl, which runs before
+# pytest's trylast conftest loader puts the repo root on sys.path. Without this the suite dies with
+# ImportError: No module named 'tests.settings' before collecting anything.
+pythonpath = ["."]
+addopts = ["-vvv", "--strict-markers", "--timeout=300"]
+
+[tool.ruff]
+line-length = 300
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "UP", "DJ", "FA", "PT", "Q", "PIE", "RSE", "RET", "SIM", "TID", "TCH", "INT", "ARG", "FLY", "TRY", "PERF", "FURB", "RUF", "COM", "I", "B"]
+# Copied verbatim from Breww's pyproject.toml:395. The package passes ruff today only under these
+# ignores, so dropping them would demand a rewrite of code this extraction is supposed to move
+# untouched. TRY003 alone fires on nearly every raise in operations.py and schema.py; ARG002 on
+# every database_backwards that ignores arguments; ARG005 on the sleep=lambda in dozens of tests.
+ignore = ["DJ001", "E501", "DJ008", "TRY003", "SIM102", "RUF012", "ARG002", "TRY201", "TRY301", "RET503", "TRY300", "PERF401", "SIM108", "SIM105", "RUF005", "SIM113", "SIM118", "PERF102", "TC003", "TC001", "RET504", "ARG003", "SIM103", "ARG005", "PERF402", "RUF015", "PERF403", "SIM401", "PT007", "PT006", "TC002", "S308", "B904", "COM812"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401"]
+# The glob must reach tests/testapp/** too, so it is "tests/**" not "tests/*": the latter matches
+# only direct children and would leave the hand-written migration fixtures linting differently.
+"tests/**" = ["E402", "ARG001", "S101"]
+"**/migrations/*" = ["E501", "ARG001", "RUF001"]

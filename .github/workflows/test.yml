@@ -1,0 +1,107 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { python: "3.12", django: "5.2", postgres: "16" }
+          - { python: "3.13", django: "5.2", postgres: "16" }
+          - { python: "3.12", django: "6.0", postgres: "16" }
+          - { python: "3.13", django: "6.0", postgres: "16" }
+          - { python: "3.14", django: "6.0", postgres: "16" }
+          - { python: "3.12", django: "6.1", postgres: "16" }
+          - { python: "3.13", django: "6.1", postgres: "16" }
+          - { python: "3.14", django: "6.1", postgres: "16" }
+          # The PostgreSQL floor claimed by the README, proved against the LOWEST Django in the
+          # matrix. Django enforces its own minimum_database_version at connect time, so pinning
+          # this to a newer Django could fail for reasons unrelated to this package.
+          - { python: "3.13", django: "5.2", postgres: "14" }
+
+    name: py${{ matrix.python }} dj${{ matrix.django }} pg${{ matrix.postgres }}
+
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: ddm
+          POSTGRES_PASSWORD: ddm
+          POSTGRES_DB: ddm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGDATABASE: ddm
+      PGUSER: ddm
+      PGPASSWORD: ddm
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install with the pinned Django
+        run: |
+          uv sync
+          uv pip install "django~=${{ matrix.django }}.0"
+
+      # --no-sync on every uv run below is load-bearing, not tidiness. uv verifies the environment
+      # against uv.lock before every `uv run` and reinstalls the locked Django, silently undoing the
+      # pin above. Without it all nine cells test one Django version and the matrix proves nothing.
+      - name: Assert the pinned Django is what will actually run
+        run: |
+          uv run --no-sync python -c "
+          import django, sys
+          print(sys.version)
+          print(django.get_version())
+          assert django.get_version().startswith('${{ matrix.django }}.'), f'expected Django ${{ matrix.django }}.x, got {django.get_version()}'
+          "
+
+      - name: Run the suite
+        run: uv run --no-sync pytest -q
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  # The commit-msg hook only runs where someone installed it. This enforces the same rules on
+  # every commit in a pull request, including ones from contributors without pre-commit.
+  # commitlint runs directly rather than through the pre-commit hook: that hook is
+  # `commitlint --edit` with pass_filenames: false, so it ignores --commit-msg-filename and only
+  # ever reads .git/COMMIT_EDITMSG. The major version matches what the hook installs (21).
+  commitlint:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Lint every commit message in the pull request
+        run: npx --yes -p @commitlint/cli@21 -p @commitlint/config-angular@21 commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose
