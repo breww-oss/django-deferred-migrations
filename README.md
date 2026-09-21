@@ -1,5 +1,11 @@
 # django-deferred-migrations
 
+[![Tests](https://github.com/breww-oss/django-deferred-migrations/actions/workflows/test.yml/badge.svg)](https://github.com/breww-oss/django-deferred-migrations/actions/workflows/test.yml)
+[![PyPI](https://img.shields.io/pypi/v/django-deferred-migrations.svg)](https://pypi.org/project/django-deferred-migrations/)
+[![Python versions](https://img.shields.io/pypi/pyversions/django-deferred-migrations.svg)](https://pypi.org/project/django-deferred-migrations/)
+[![Django versions](https://img.shields.io/pypi/frameworkversions/django/django-deferred-migrations.svg)](https://pypi.org/project/django-deferred-migrations/)
+[![Licence](https://img.shields.io/pypi/l/django-deferred-migrations.svg)](https://github.com/breww-oss/django-deferred-migrations/blob/main/LICENSE)
+
 Deploy-safe Django migrations for PostgreSQL. Destructive schema changes (dropping a column or table, tightening a column to NOT NULL, reshaping a column) ship in one pull request and one deploy, and old code keeps working while the new release rolls out.
 
 Built and used in production at [Breww](https://breww.com).
@@ -108,9 +114,9 @@ Keep `deferred_migrations` above any other app in `INSTALLED_APPS` that ships a 
 
 ## Requirements
 
-- Python 3.13 or later
-- Django 6.0
-- PostgreSQL 14 or later (`CREATE OR REPLACE TRIGGER`)
+- Python 3.12 or later
+- Django 5.2, 6.0 or 6.1
+- PostgreSQL 14 or later with Django 5.2 or 6.0, PostgreSQL 15 or later with Django 6.1 (`CREATE OR REPLACE TRIGGER`)
 - psycopg 3
 
 Other database backends are not supported: `migrate_pre_deploy` and `migrate_post_deploy` raise `ImproperlyConfigured` on them.
@@ -119,6 +125,12 @@ Other database backends are not supported: `migrate_pre_deploy` and `migrate_pos
 
 ```console
 pip install django-deferred-migrations
+```
+
+Or with uv:
+
+```console
+uv add django-deferred-migrations
 ```
 
 Add the app, above any other app in `INSTALLED_APPS` that ships a `makemigrations` or `migrate` command (see [`makemigrations`](#makemigrations) and [plain `migrate`](#plain-migrate); the system checks `deferred_migrations.W001` and `W002` catch it):
