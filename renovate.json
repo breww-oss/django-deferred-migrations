@@ -1,0 +1,75 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommits"
+  ],
+  "timezone": "Europe/London",
+  "labels": [
+    "dependencies"
+  ],
+  "minimumReleaseAge": "7 days",
+  "dependencyDashboard": true,
+  "pre-commit": {
+    "enabled": true
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "* 0-5 * * 1"
+    ]
+  },
+  "packageRules": [
+    {
+      "description": "The runtime, optional and build requirements and the supported Python range are the package's public contract. They are raised by hand together with the CI matrix, so Renovate never edits them.",
+      "matchManagers": [
+        "pep621"
+      ],
+      "matchDepTypes": [
+        "project.dependencies",
+        "project.optional-dependencies",
+        "build-system.requires",
+        "requires-python"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Development tooling never reaches users, so its updates use a type that does not trigger a release.",
+      "matchManagers": [
+        "pep621",
+        "pre-commit",
+        "custom.regex"
+      ],
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "description": "The ruff pre-commit hook and the pinned ruff dev dependency must stay on the same version.",
+      "matchPackageNames": [
+        "ruff",
+        "astral-sh/ruff-pre-commit"
+      ],
+      "groupName": "ruff"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "The uv version pinned for release builds.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/release\\.yml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+version: \"(?<currentValue>[^\"]+)\""
+      ]
+    }
+  ]
+}

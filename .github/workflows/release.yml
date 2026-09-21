@@ -36,6 +36,7 @@ jobs:
       # The same uv as local development, so a uv upgrade cannot rewrite uv.lock inside the release commit.
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
+          # renovate: datasource=pypi depName=uv
           version: "0.12.17"
           python-version: "3.12"
 
