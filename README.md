@@ -1,6 +1,7 @@
 # django-deferred-migrations
 
 [![Tests](https://github.com/breww-oss/django-deferred-migrations/actions/workflows/test.yml/badge.svg)](https://github.com/breww-oss/django-deferred-migrations/actions/workflows/test.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/breww-oss/django-deferred-migrations/badge)](https://scorecard.dev/viewer/?uri=github.com/breww-oss/django-deferred-migrations)
 [![PyPI](https://img.shields.io/pypi/v/django-deferred-migrations.svg)](https://pypi.org/project/django-deferred-migrations/)
 [![Python versions](https://img.shields.io/pypi/pyversions/django-deferred-migrations.svg)](https://pypi.org/project/django-deferred-migrations/)
 [![Django versions](https://img.shields.io/pypi/frameworkversions/django/django-deferred-migrations.svg)](https://pypi.org/project/django-deferred-migrations/)
