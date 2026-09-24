@@ -59,7 +59,7 @@ dev = [
     "pytest-timeout>=2.4,<3",
     "psycopg[binary]>=3.2.3,<4",
     "django-linear-migrations>=2,<3",
-    "ruff==0.16.7",
+    "ruff==0.16.8",
     "rich>=15",
     "python-semantic-release>=10,<11",
     "zizmor==1.30.1",
