@@ -1,4 +1,6 @@
+from django.db import DEFAULT_DB_ALIAS
 from django.db import connection
+from django.db import connections
 from django.db import models
 from django.db.migrations.migration import Migration
 from django.db.migrations.operations.base import Operation
@@ -48,8 +50,8 @@ def nullability_and_default(table: str, column: str) -> tuple[str, str | None]:
         return cursor.fetchone()
 
 
-def relation_kind(name: str) -> str | None:
-    with connection.cursor() as cursor:
+def relation_kind(name: str, using: str = DEFAULT_DB_ALIAS) -> str | None:
+    with connections[using].cursor() as cursor:
         cursor.execute("SELECT relkind FROM pg_class WHERE oid = to_regclass(%s)", [name])
         row = cursor.fetchone()
 
