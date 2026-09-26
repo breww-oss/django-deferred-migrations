@@ -826,7 +826,7 @@ All commands skip Django's system checks, and the rules are not registered as sy
 | Command | Options | Description |
 |---|---|---|
 | `check_deploy_safety` | `--unapplied-only`, `--database` | Runs the rules. Exits non-zero on any finding. Without `--unapplied-only` it needs no database connection |
-| `fix_deploy_safety` | `[app_label] [migration_name]` | Rewrites `migrations.RemoveField(` and `migrations.DeleteModel(` to the deferred operations, adds the import and the queue dependency, and prints everything else that needs a decision. Idempotent. A file is only edited when the number of occurrences matches the number of findings; files that import `RemoveField` or `DeleteModel` directly are reported for a manual fix |
+| `fix_deploy_safety` | `[app_label] [migration_name]`, `--database` | Never edits a migration already applied to `--database`. Rewrites `migrations.RemoveField(` and `migrations.DeleteModel(` to the deferred operations, adds the import and the queue dependency, and prints everything else that needs a decision. Idempotent. A file is only edited when the number of occurrences matches the number of findings; files that import `RemoveField` or `DeleteModel` directly are reported for a manual fix |
 | `migrate_pre_deploy` | `--database` | Safety check, stale row cleanup, then `migrate` with the lock timeout and retry |
 | `migrate_post_deploy` | `--database`, `--wait-before-seconds N`, `--dry-run`, `--fail-on-error` | Runs the queue. Exits 0 when a row fails unless `--fail-on-error` is passed |
 | `migrate_full` | `--database`, `--prompt-before-post`, `--fail-on-error` | Local development only: `migrate_pre_deploy` then `migrate_post_deploy` with no wait, optionally asking in between |
