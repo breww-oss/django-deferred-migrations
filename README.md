@@ -76,11 +76,13 @@ The key difference: **only the physical destructive SQL is deferred, not the mig
 
 ## Equivalence with Django's own migrations
 
-After `migrate_pre_deploy` and `migrate_post_deploy`, the schema matches what plain Django migrations build for removing a field, deleting a model and renaming a model, and for the concurrent index, constraint and field operations. The comparison covers columns, types, nullability, defaults, indexes, constraints, sequences, triggers and functions.
+The test suite generates migrations with both Django's `makemigrations` and this package's (or with Django's and then `fix_deploy_safety`), applies them to two separate databases, and compares the results. It covers removing a field, deleting a model, renaming a field, renaming a model, and the concurrent index, constraint and field operations, across text, numeric, date, UUID, JSON, `db_default` and generated columns. The comparison covers columns, types, nullability, defaults, collations, comments, indexes and their validity, constraints, sequences, triggers, functions, views, row contents and content types.
 
-Tightening a column to NOT NULL and reshaping a column through a synced copy have no single native equivalent that succeeds on a populated table. They are compared instead against the hand-written safe recipe a careful developer would write (backfill, then tighten; add the new column, copy the data across, then drop the old one), and the schema matches that recipe.
+Each case is compared at every step: after `migrate_post_deploy`; after old code has kept reading, inserting, updating, upserting, locking and deleting rows between the two phases (on the Django side, just before `migrate`); after new code has written rows that rely on database defaults; after a deploy is rolled back before its `migrate_post_deploy` runs; and after every deploy is reversed. Where Django itself cannot reverse a migration on a populated table, the package must fail the same way.
 
-Row contents are compared for tightening to NOT NULL, renaming a model and reshaping a column, the cases where data moves or could be lost. The intermediate state is deliberately different, which is what lets old code keep running during a rollout.
+Tightening a column to NOT NULL and reshaping a column through a synced copy have no single native equivalent that succeeds on a populated table. They are compared instead against the hand-written safe recipe a careful developer would write (backfill, then tighten; add the new column, copy the data across, then drop the old one), in the same way. The only difference: a NOT NULL backfill rewrites existing rows and neither side restores them on reversal, so a rollback before `migrate_post_deploy` is compared on schema alone for it.
+
+The intermediate state is deliberately different, which is what lets old code keep running during a rollout.
 
 Two things the comparison deliberately does not assert: physical column order, which PostgreSQL attaches no meaning to and which Django's own drop-and-re-add changes anyway, and the duration or lock behaviour of each statement, which is covered by separate tests.
 
@@ -332,7 +334,7 @@ from deferred_migrations.operations import (
 )
 ```
 
-Every migration that uses `DeferredRemoveField`, `DeferredDeleteModel`, `InstallColumnSync`, `InstallNotNullFill`, `BackfillColumnSync`, `BackfillNotNull` or `AddFieldConcurrently` depends on `("deferred_migrations", "0001_initial")` ([E008](#e008)). `DeferredRemoveField`, `DeferredDeleteModel`, `InstallColumnSync` and `InstallNotNullFill` queue rows keyed by their position in the migration, so they must be top-level operations, not nested inside `SeparateDatabaseAndState`.
+Every migration that uses `DeferredRemoveField`, `DeferredDeleteModel`, `InstallColumnSync`, `InstallNotNullFill`, `BackfillColumnSync`, `BackfillNotNull` or `AddFieldConcurrently` depends on `("deferred_migrations", "0001_initial")`, and one that uses `DeferredRenameModel` on `("deferred_migrations", "0002_modelrename")` ([E008](#e008)). `DeferredRemoveField`, `DeferredDeleteModel`, `InstallColumnSync` and `InstallNotNullFill` queue rows keyed by their position in the migration, so they must be top-level operations, not nested inside `SeparateDatabaseAndState`.
 
 Every operation does nothing on the database for proxy, unmanaged and swapped models, and for models a database router excludes, exactly like Django's own operations. Every operation is safe to re-run, so an interrupted non-atomic migration can be applied again as long as any `RunPython` or `RunSQL` it also contains is idempotent, and all SQL goes through the schema editor, so `sqlmigrate` shows it.
 
@@ -686,7 +688,7 @@ sales.0220_remove_invoice_legacy_ref[0] deferred_migrations.E001: RemoveField('i
 
 **Why it is unsafe:** the operations write to the queue table, which may not exist yet.
 
-**Fix:** add `("deferred_migrations", "0001_initial")` to `dependencies`, and `("deferred_migrations", "0002_modelrename")` for a `DeferredRenameModel`. `fix_deploy_safety` does this.
+**Fix:** add `("deferred_migrations", "0001_initial")` to `dependencies`, or `("deferred_migrations", "0002_modelrename")` for a migration with a `DeferredRenameModel` (it depends on `0001_initial` itself). `fix_deploy_safety` adds `0001_initial`, and reports a missing `0002_modelrename` for a person to add rather than adding it.
 
 ### E009
 
