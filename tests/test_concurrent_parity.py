@@ -39,6 +39,19 @@ def fk(**options: object) -> models.ForeignKey:
     return models.ForeignKey("dm_par.Parent", models.SET_NULL, null=True, **options)
 
 
+def unique_code(**options: object) -> models.CharField:
+    return models.CharField(max_length=10, null=True, unique=True, **options)
+
+
+def one_to_one() -> models.OneToOneField:
+    return models.OneToOneField("dm_par.Parent", models.SET_NULL, null=True)
+
+
+LONG_COLUMN = "a_column_name_long_enough_to_push_the_constraint_past_63_bytes"
+MULTIBYTE_COLUMN = "x" + "ü" * 30
+TAKE_KEY_NAME = migrations.RunSQL("CREATE INDEX dm_par_child_code_key ON dm_par_parent (id)", migrations.RunSQL.noop)
+
+
 # Each case is (Django's plain operations, run atomically) against (the package's operation, run non-atomically).
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize(
@@ -47,14 +60,14 @@ def fk(**options: object) -> models.ForeignKey:
         pytest.param([migrations.AddField("child", "parent", fk())], [AddFieldConcurrently("child", "parent", fk())], id="foreign key"),
         pytest.param([migrations.AddField("child", "parent", fk(db_index=False))], [AddFieldConcurrently("child", "parent", fk(db_index=False))], id="foreign key without index"),
         pytest.param([migrations.AddField("child", "code", models.CharField(max_length=10, null=True, db_index=True))], [AddFieldConcurrently("child", "code", models.CharField(max_length=10, null=True, db_index=True))], id="indexed char field"),
-        pytest.param(
-            [migrations.AddField("child", "code", models.CharField(max_length=10, null=True)), migrations.AlterField("child", "code", models.CharField(max_length=10, null=True, unique=True))],
-            [AddFieldConcurrently("child", "code", models.CharField(max_length=10, null=True, unique=True))],
-            id="unique char field",
-        ),
-        pytest.param(
-            [migrations.AddField("child", "parent", fk()), migrations.AlterField("child", "parent", models.OneToOneField("dm_par.Parent", models.SET_NULL, null=True))], [AddFieldConcurrently("child", "parent", models.OneToOneField("dm_par.Parent", models.SET_NULL, null=True))], id="one to one"
-        ),
+        pytest.param([migrations.AddField("child", "code", unique_code())], [AddFieldConcurrently("child", "code", unique_code())], id="unique char field"),
+        pytest.param([migrations.AddField("child", "parent", one_to_one())], [AddFieldConcurrently("child", "parent", one_to_one())], id="one to one"),
+        # PostgreSQL trims the longer of table and column name a byte at a time to fit 63 bytes, so this one loses the end of its column name.
+        pytest.param([migrations.AddField("child", "code", unique_code(db_column=LONG_COLUMN))], [AddFieldConcurrently("child", "code", unique_code(db_column=LONG_COLUMN))], id="unique column with a long name"),
+        # 61 bytes, trimmed to 46, which falls in the middle of a two-byte character that must be clipped whole.
+        pytest.param([migrations.AddField("child", "code", unique_code(db_column=MULTIBYTE_COLUMN))], [AddFieldConcurrently("child", "code", unique_code(db_column=MULTIBYTE_COLUMN))], id="unique column with a multibyte name"),
+        # An unrelated index already holds dm_par_child_code_key, so PostgreSQL falls back to dm_par_child_code_key1.
+        pytest.param([TAKE_KEY_NAME, migrations.AddField("child", "code", unique_code())], [TAKE_KEY_NAME, AddFieldConcurrently("child", "code", unique_code())], id="unique column whose name is taken"),
         pytest.param([migrations.AddConstraint("child", models.UniqueConstraint(fields=["batch", "kind"], name="dm_par_u"))], [AddConstraintConcurrently("child", models.UniqueConstraint(fields=["batch", "kind"], name="dm_par_u"))], id="unique constraint"),
         pytest.param(
             [migrations.AddConstraint("child", models.UniqueConstraint(fields=["batch", "vessel", "kind"], name="dm_par_nnd", nulls_distinct=False))],
