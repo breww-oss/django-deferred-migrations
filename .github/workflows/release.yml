@@ -20,17 +20,34 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      # The release app's installation token does the pushing, so the workflow token stays read-only.
+      contents: read
     outputs:
       released: ${{ steps.release.outputs.released }}
       tag: ${{ steps.release.outputs.tag }}
     steps:
+      # The "Protect main" ruleset requires status checks and CodeQL results that a commit pushed
+      # straight to main can never have, and [skip ci] means none will ever run on it, so PSR's
+      # release commit needs a ruleset bypass actor. GITHUB_TOKEN cannot be one: a repository ruleset
+      # only accepts an app installed on the owning organisation. Hence a dedicated app, whose
+      # installation token carries contents: write on this repository alone and expires in an hour.
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        id: app-token
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          # Narrow the installation token to the one permission PSR needs: pushing the release commit
+          # and tag, and creating the GitHub release. Without this it inherits every permission the
+          # app holds.
+          permission-contents: write
+
       # Credentials persist because PSR pushes the release commit and tag. Only dist/ is uploaded as
       # an artifact, never the checkout, so the token in .git/config cannot leak through one.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # zizmor: ignore[artipacked]
           ref: ${{ github.sha }}
+          token: ${{ steps.app-token.outputs.token }}
 
       # Release from the exact commit the tests ran on, on a named branch PSR can commit to and push.
       - run: git checkout -B "$REF_NAME"
@@ -49,7 +66,7 @@ jobs:
       - name: Version, changelog, tag, push and GitHub release
         id: release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: uv run semantic-release -v version
 
       # Straight after the release step, and even if it failed: PSR writes released/tag on exit, so a
@@ -66,7 +83,7 @@ jobs:
         if: ${{ !cancelled() && steps.release.outputs.released == 'true' }}
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           TAG: ${{ steps.release.outputs.tag }}
         run: uv run semantic-release publish --tag "$TAG"
 
