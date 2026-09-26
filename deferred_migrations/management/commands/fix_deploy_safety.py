@@ -23,12 +23,13 @@ class Command(BaseCommand):
     def add_arguments(self, parser: ArgumentParser) -> None:
         parser.add_argument("app_label", nargs="?")
         parser.add_argument("migration_name", nargs="?")
+        parser.add_argument("--database", default=DEFAULT_DB_ALIAS, help="The database whose applied migrations are never edited.")
 
-    def handle(self, *args: str, app_label: str | None, migration_name: str | None, **options: object) -> None:
+    def handle(self, *args: str, app_label: str | None, migration_name: str | None, database: str, **options: object) -> None:
         loader = MigrationLoader(None, ignore_no_migrations=True)
         # A loader without a connection reports nothing as applied, so read that from the database; the fixer must never edit a migration that has already run.
-        applied = set(MigrationLoader(connections[DEFAULT_DB_ALIAS], ignore_no_migrations=True).applied_migrations)
-        findings = [finding for finding in check_installed_project(applied) if (app_label is None or finding.app_label == app_label) and (migration_name is None or finding.migration_name == migration_name)]
+        applied = set(MigrationLoader(connections[database], ignore_no_migrations=True).applied_migrations)
+        findings = [finding for finding in check_installed_project(applied, database) if (app_label is None or finding.app_label == app_label) and (migration_name is None or finding.migration_name == migration_name)]
         by_migration: dict[tuple[str, str], Counter[str]] = {}
 
         for finding in findings:

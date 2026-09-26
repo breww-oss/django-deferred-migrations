@@ -24,7 +24,7 @@ Migrations run before new code rolls out, and old code keeps running until the r
 | E005 | Renaming a physical table or column | Re-run `makemigrations` interactively; keep the old name with `db_column` / `db_table` only for renames it cannot handle |
 | E006 | Column type change that rewrites the table | `InstallColumnSync`, then `BackfillColumnSync` |
 | E007 | Trigger operations split or configured wrongly | Install in an atomic migration, backfill in a later `atomic = False` one |
-| E008 | Package operation without the queue dependency | Depend on `("deferred_migrations", "0001_initial")` |
+| E008 | Package operation without the queue dependency | Depend on `("deferred_migrations", "0001_initial")`, or `0002_modelrename` for a `DeferredRenameModel` |
 | E009 | Suppression with no reason or an unknown rule | Give a real reason |
 | E010 | Baseline file names a missing migration | Point it at an existing migration |
 | E011 | Deferred removal of a field a `GeneratedField` uses | Remove or change the generated field first |
@@ -123,7 +123,7 @@ SQL must be deterministic. Widening `varchar`, `numeric` precision, or an uninde
 
 ### E008: queue dependency
 
-Add `("deferred_migrations", "0001_initial")` to `dependencies`.
+Add `("deferred_migrations", "0001_initial")` to `dependencies`. A migration with a `DeferredRenameModel` needs `("deferred_migrations", "0002_modelrename")` instead, which `fix_deploy_safety` does not add for you.
 
 ### E009: suppression
 

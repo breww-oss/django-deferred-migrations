@@ -5,7 +5,6 @@ from django.db import ProgrammingError
 from django.db import connection
 from django.db import migrations
 from django.db import models
-from django.db.backends.utils import strip_quotes
 from django.db.migrations.state import ProjectState
 
 from deferred_migrations.models import DeferredOperation
@@ -70,7 +69,7 @@ def test_a_one_to_one_gets_a_unique_constraint_and_no_plain_index(scratch_tables
 
     found = constraints_on("parent_id")
     assert [name for name, info in found.items() if info["unique"]]
-    assert all(name.endswith("_uniq") for name, info in found.items() if info["unique"])
+    assert [name for name, info in found.items() if info["unique"]] == ["dm_afc_child_parent_id_key"]
     assert [name for name, info in found.items() if info["foreign_key"]]
     assert not [name for name, info in found.items() if info["index"] and not info["unique"]]
 
@@ -182,10 +181,8 @@ def test_backwards_removes_the_column(scratch_tables: list[str]) -> None:
     assert "parent_id" not in column_names("dm_afc_child")
 
 
-def unique_name(after: ProjectState, field_name: str) -> str:
-    with connection.schema_editor(atomic=False) as editor:
-        model = after.apps.get_model("dm_afc", "child")
-        return strip_quotes(str(editor._create_unique_sql(model, [model._meta.get_field(field_name)]).parts["name"]))
+# The name PostgreSQL gives an inline UNIQUE on dm_afc_child.code, which AddFieldConcurrently copies.
+UNIQUE_NAME = "dm_afc_child_code_key"
 
 
 @pytest.mark.django_db(transaction=True)
@@ -194,7 +191,7 @@ def test_a_rerun_replaces_an_invalid_unique_index_left_by_a_failed_build(scratch
     operation = AddFieldConcurrently("child", "code", models.CharField(max_length=10, null=True, unique=True))
     after = state.clone()
     operation.state_forwards("dm_afc", after)
-    name = unique_name(after, "code")
+    name = UNIQUE_NAME
 
     with connection.cursor() as cursor:
         cursor.execute("ALTER TABLE dm_afc_child ADD COLUMN code varchar(10) NULL")
@@ -218,7 +215,7 @@ def test_a_rerun_attaches_a_unique_index_built_before_the_interruption(scratch_t
     operation = AddFieldConcurrently("child", "code", models.CharField(max_length=10, null=True, unique=True))
     after = state.clone()
     operation.state_forwards("dm_afc", after)
-    name = unique_name(after, "code")
+    name = UNIQUE_NAME
 
     with connection.cursor() as cursor:
         cursor.execute("ALTER TABLE dm_afc_child ADD COLUMN code varchar(10) NULL")
@@ -236,7 +233,7 @@ def test_a_failed_unique_build_leaves_no_index_behind(scratch_tables: list[str])
     operation = AddFieldConcurrently("child", "code", models.CharField(max_length=10, unique=True, default="same"), preserve_default=False)
     after = state.clone()
     operation.state_forwards("dm_afc", after)
-    name = unique_name(after, "code")
+    name = UNIQUE_NAME
 
     with pytest.raises(IntegrityError):
         apply_operations("dm_afc", state, [operation], atomic=False, name="0002")

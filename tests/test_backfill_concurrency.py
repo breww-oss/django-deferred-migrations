@@ -10,7 +10,8 @@ from deferred_migrations.progress import NullReporter
 
 
 @pytest.mark.django_db(transaction=True)
-def test_a_batch_blocked_by_a_user_row_lock_times_out_and_retries(settings: Settings) -> None:
+def test_a_batch_blocked_by_a_user_row_lock_times_out_and_retries(settings: Settings, scratch_tables: list[str]) -> None:
+    scratch_tables.append("dm_backfill_probe")
     settings.DEFERRED_MIGRATIONS_DDL_LOCK_TIMEOUT = "100ms"
     settings.DEFERRED_MIGRATIONS_BACKFILL_MIN_ROWS = 1000
     settings.DEFERRED_MIGRATIONS_BACKFILL_MAX_ROWS = 1000

@@ -9,6 +9,7 @@ from django.core.management import CommandError
 from django.core.management import call_command
 from django.db import ProgrammingError
 from django.db import connection
+from django.db import connections
 from django.db.migrations.recorder import MigrationRecorder
 from django.test import override_settings
 
@@ -162,6 +163,24 @@ def test_fix_deploy_safety_rewrites_only_migrations_not_yet_applied(monkeypatch:
     monkeypatch.setattr(Path, "write_text", lambda path, *args, **kwargs: written.append(path))
 
     call_command("fix_deploy_safety", "deferred_migrations_testapp", stdout=StringIO())
+
+    assert [path.name for path in written] == rewritten
+
+
+# What counts as applied comes from --database, so a project migrated on a second database is judged by that database's history, not default's.
+@pytest.mark.parametrize(("database", "rewritten"), [("native", []), ("default", ["0003_remove_child_note.py"])])
+@pytest.mark.django_db(transaction=True, databases=["default", "native"])
+@pytest.mark.usefixtures("unsafe_test_app")
+def test_fix_deploy_safety_reads_applied_migrations_from_the_database_it_is_given(monkeypatch: pytest.MonkeyPatch, database: str, rewritten: list[str]) -> None:
+    call_command("migrate", "deferred_migrations_testapp", database="native", verbosity=0)
+    written: list[Path] = []
+    monkeypatch.setattr(Path, "write_text", lambda path, *args, **kwargs: written.append(path))
+
+    try:
+        call_command("fix_deploy_safety", "deferred_migrations_testapp", database=database, stdout=StringIO())
+    finally:
+        call_command("migrate", "deferred_migrations_testapp", "zero", database="native", verbosity=0)
+        MigrationRecorder(connections["native"]).migration_qs.filter(app="deferred_migrations_testapp").delete()
 
     assert [path.name for path in written] == rewritten
 

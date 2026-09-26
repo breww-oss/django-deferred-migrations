@@ -15,9 +15,11 @@ from tests.migration_helpers import column_names
 
 
 @pytest.fixture
-def locked_probe_table() -> str:
+def locked_probe_table(scratch_tables: list[str]) -> str:
+    scratch_tables.append("dm_lock_probe")
+
     with connection.cursor() as cursor:
-        cursor.execute("CREATE TABLE IF NOT EXISTS dm_lock_probe (id integer, note text)")
+        cursor.execute("CREATE TABLE dm_lock_probe (id integer, note text)")
         cursor.execute("INSERT INTO dm_lock_probe VALUES (1, 'x')")
 
     return "dm_lock_probe"
@@ -109,7 +111,8 @@ def test_concurrently_statements_have_no_timeout(settings: Settings, locked_prob
 
 
 @pytest.mark.django_db(transaction=True)
-def test_django_fk_drop_sql_is_subject_to_the_timeout(settings: Settings) -> None:
+def test_django_fk_drop_sql_is_subject_to_the_timeout(settings: Settings, scratch_tables: list[str]) -> None:
+    scratch_tables.extend(["dm_fk_parent", "dm_fk_child"])
     settings.DEFERRED_MIGRATIONS_DDL_LOCK_TIMEOUT = "100ms"
 
     with connection.cursor() as cursor:

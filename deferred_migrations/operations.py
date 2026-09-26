@@ -22,6 +22,7 @@ from deferred_migrations.concurrent import attach_unique_index
 from deferred_migrations.concurrent import build_index_concurrently
 from deferred_migrations.concurrent import concurrent_index
 from deferred_migrations.concurrent import constraint_validity
+from deferred_migrations.concurrent import inline_unique_name
 from deferred_migrations.concurrent import not_valid
 from deferred_migrations.contenttypes import check_no_stale_content_type
 from deferred_migrations.context import OperationKey
@@ -557,8 +558,9 @@ class AddFieldConcurrently(NotInTransactionMixin, AddField):
         for statement in schema_editor._field_indexes_sql(model, field):
             build_index_concurrently(schema_editor, table, concurrent_index(statement))
 
+        # Named as PostgreSQL names the inline UNIQUE of a plain AddField, not as Django names one AlterField adds, so the schema matches what makemigrations' AddField would have built.
         if field.unique:
-            attach_unique_index(schema_editor, table, schema_editor._create_unique_sql(model, [field]))
+            attach_unique_index(schema_editor, table, schema_editor._create_unique_sql(model, [field], name=inline_unique_name(schema_editor, table, field.column)))
 
         if field.remote_field is not None and field.db_constraint:
             add_constraint(schema_editor, table, not_valid(schema_editor._create_fk_sql(model, field, FK_SUFFIX)), validate=True)

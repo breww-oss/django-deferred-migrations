@@ -151,7 +151,8 @@ def test_progress_goes_to_the_output_the_command_set(settings: Settings, probe_t
 
 
 @pytest.mark.django_db(transaction=True)
-def test_a_lock_timeout_halves_the_range_so_rows_before_the_locked_one_are_written(settings: Settings) -> None:
+def test_a_lock_timeout_halves_the_range_so_rows_before_the_locked_one_are_written(settings: Settings, scratch_tables: list[str]) -> None:
+    scratch_tables.append("dm_backfill_halving")
     settings.DEFERRED_MIGRATIONS_DDL_LOCK_TIMEOUT = "100ms"
     settings.DEFERRED_MIGRATIONS_LOCK_RETRIES = 30
     settings.DEFERRED_MIGRATIONS_BACKFILL_MIN_ROWS = 1
@@ -190,7 +191,8 @@ def test_a_lock_timeout_halves_the_range_so_rows_before_the_locked_one_are_writt
 
 
 @pytest.mark.django_db(transaction=True)
-def test_exhausting_the_lock_budget_raises(settings: Settings) -> None:
+def test_exhausting_the_lock_budget_raises(settings: Settings, scratch_tables: list[str]) -> None:
+    scratch_tables.append("dm_backfill_budget")
     settings.DEFERRED_MIGRATIONS_DDL_LOCK_TIMEOUT = "50ms"
     settings.DEFERRED_MIGRATIONS_LOCK_RETRIES = 3
     settings.DEFERRED_MIGRATIONS_BACKFILL_MIN_ROWS = 1

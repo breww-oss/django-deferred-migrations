@@ -76,11 +76,13 @@ The key difference: **only the physical destructive SQL is deferred, not the mig
 
 ## Equivalence with Django's own migrations
 
-After `migrate_pre_deploy` and `migrate_post_deploy`, the schema matches what plain Django migrations build for removing a field, deleting a model and renaming a model, and for the concurrent index, constraint and field operations. The comparison covers columns, types, nullability, defaults, indexes, constraints, sequences, triggers and functions.
+The test suite generates migrations with both Django's `makemigrations` and this package's (or with Django's and then `fix_deploy_safety`), applies them to two separate databases, and compares the results. It covers removing a field, deleting a model, renaming a field, renaming a model, and the concurrent index, constraint and field operations, across text, numeric, date, UUID, JSON, `db_default` and generated columns. The comparison covers columns, types, nullability, defaults, collations, comments, indexes and their validity, constraints, sequences, triggers, functions, views, row contents and content types.
 
-Tightening a column to NOT NULL and reshaping a column through a synced copy have no single native equivalent that succeeds on a populated table. They are compared instead against the hand-written safe recipe a careful developer would write (backfill, then tighten; add the new column, copy the data across, then drop the old one), and the schema matches that recipe.
+Each case is compared at every step: after `migrate_post_deploy`; after old code has kept reading, inserting, updating, upserting, locking and deleting rows between the two phases (on the Django side, just before `migrate`); after new code has written rows that rely on database defaults; after a deploy is rolled back before its `migrate_post_deploy` runs; and after every deploy is reversed. Where Django itself cannot reverse a migration on a populated table, the package must fail the same way.
 
-Row contents are compared for tightening to NOT NULL, renaming a model and reshaping a column, the cases where data moves or could be lost. The intermediate state is deliberately different, which is what lets old code keep running during a rollout.
+Tightening a column to NOT NULL and reshaping a column through a synced copy have no single native equivalent that succeeds on a populated table. They are compared instead against the hand-written safe recipe a careful developer would write (backfill, then tighten; add the new column, copy the data across, then drop the old one), in the same way. The only difference: a NOT NULL backfill rewrites existing rows and neither side restores them on reversal, so a rollback before `migrate_post_deploy` is compared on schema alone for it.
+
+The intermediate state is deliberately different, which is what lets old code keep running during a rollout.
 
 Two things the comparison deliberately does not assert: physical column order, which PostgreSQL attaches no meaning to and which Django's own drop-and-re-add changes anyway, and the duration or lock behaviour of each statement, which is covered by separate tests.
 
@@ -332,7 +334,7 @@ from deferred_migrations.operations import (
 )
 ```
 
-Every migration that uses `DeferredRemoveField`, `DeferredDeleteModel`, `InstallColumnSync`, `InstallNotNullFill`, `BackfillColumnSync`, `BackfillNotNull` or `AddFieldConcurrently` depends on `("deferred_migrations", "0001_initial")` ([E008](#e008)). `DeferredRemoveField`, `DeferredDeleteModel`, `InstallColumnSync` and `InstallNotNullFill` queue rows keyed by their position in the migration, so they must be top-level operations, not nested inside `SeparateDatabaseAndState`.
+Every migration that uses `DeferredRemoveField`, `DeferredDeleteModel`, `InstallColumnSync`, `InstallNotNullFill`, `BackfillColumnSync`, `BackfillNotNull` or `AddFieldConcurrently` depends on `("deferred_migrations", "0001_initial")`, and one that uses `DeferredRenameModel` on `("deferred_migrations", "0002_modelrename")` ([E008](#e008)). `DeferredRemoveField`, `DeferredDeleteModel`, `InstallColumnSync` and `InstallNotNullFill` queue rows keyed by their position in the migration, so they must be top-level operations, not nested inside `SeparateDatabaseAndState`.
 
 Every operation does nothing on the database for proxy, unmanaged and swapped models, and for models a database router excludes, exactly like Django's own operations. Every operation is safe to re-run, so an interrupted non-atomic migration can be applied again as long as any `RunPython` or `RunSQL` it also contains is idempotent, and all SQL goes through the schema editor, so `sqlmigrate` shows it.
 
@@ -525,7 +527,7 @@ atomic = False
 operations = [AddFieldConcurrently("invoice", "store", models.ForeignKey("shop.Store", models.SET_NULL, null=True))]
 ```
 
-`AddFieldConcurrently` adds the column with no index or constraint, builds Django's indexes with `CREATE INDEX CONCURRENTLY`, and adds the foreign key `NOT VALID` before `VALIDATE CONSTRAINT`. A unique field (including a `OneToOneField`) gets a concurrent unique index attached with `ADD CONSTRAINT ... UNIQUE USING INDEX`, named as Django names a unique constraint added by `AlterField` (`..._uniq`), not PostgreSQL's inline `..._key`. It can be re-run after an interruption. It refuses a column whose drop from an earlier removal has not run, whether that drop is still queued or was skipped. The `NOT VALID` step briefly takes `SHARE ROW EXCLUSIVE` on both the table and the table it references, which blocks writes to both for that moment. `VALIDATE CONSTRAINT` then takes `SHARE UPDATE EXCLUSIVE` on the table and `ROW SHARE` on the referenced table, both of which allow ordinary writes.
+`AddFieldConcurrently` adds the column with no index or constraint, builds Django's indexes with `CREATE INDEX CONCURRENTLY`, and adds the foreign key `NOT VALID` before `VALIDATE CONSTRAINT`. A unique field (including a `OneToOneField`) gets a concurrent unique index attached with `ADD CONSTRAINT ... UNIQUE USING INDEX`, named `..._key`, exactly as PostgreSQL names the inline `UNIQUE` of the plain `AddField` that `makemigrations` would have written, including its truncation to 63 bytes and its `..._key1` fallback when the name is taken. It can be re-run after an interruption. It refuses a column whose drop from an earlier removal has not run, whether that drop is still queued or was skipped. The `NOT VALID` step briefly takes `SHARE ROW EXCLUSIVE` on both the table and the table it references, which blocks writes to both for that moment. `VALIDATE CONSTRAINT` then takes `SHARE UPDATE EXCLUSIVE` on the table and `ROW SHARE` on the referenced table, both of which allow ordinary writes.
 
 ### Adding check and unique constraints
 
@@ -686,7 +688,7 @@ sales.0220_remove_invoice_legacy_ref[0] deferred_migrations.E001: RemoveField('i
 
 **Why it is unsafe:** the operations write to the queue table, which may not exist yet.
 
-**Fix:** add `("deferred_migrations", "0001_initial")` to `dependencies`, and `("deferred_migrations", "0002_modelrename")` for a `DeferredRenameModel`. `fix_deploy_safety` does this.
+**Fix:** add `("deferred_migrations", "0001_initial")` to `dependencies`, or `("deferred_migrations", "0002_modelrename")` for a migration with a `DeferredRenameModel` (it depends on `0001_initial` itself). `fix_deploy_safety` adds `0001_initial`, and reports a missing `0002_modelrename` for a person to add rather than adding it.
 
 ### E009
 
@@ -826,7 +828,7 @@ All commands skip Django's system checks, and the rules are not registered as sy
 | Command | Options | Description |
 |---|---|---|
 | `check_deploy_safety` | `--unapplied-only`, `--database` | Runs the rules. Exits non-zero on any finding. Without `--unapplied-only` it needs no database connection |
-| `fix_deploy_safety` | `[app_label] [migration_name]` | Rewrites `migrations.RemoveField(` and `migrations.DeleteModel(` to the deferred operations, adds the import and the queue dependency, and prints everything else that needs a decision. Idempotent. A file is only edited when the number of occurrences matches the number of findings; files that import `RemoveField` or `DeleteModel` directly are reported for a manual fix |
+| `fix_deploy_safety` | `[app_label] [migration_name]`, `--database` | Never edits a migration already applied to `--database`. Rewrites `migrations.RemoveField(` and `migrations.DeleteModel(` to the deferred operations, adds the import and the queue dependency, and prints everything else that needs a decision. Idempotent. A file is only edited when the number of occurrences matches the number of findings; files that import `RemoveField` or `DeleteModel` directly are reported for a manual fix |
 | `migrate_pre_deploy` | `--database` | Safety check, stale row cleanup, then `migrate` with the lock timeout and retry |
 | `migrate_post_deploy` | `--database`, `--wait-before-seconds N`, `--dry-run`, `--fail-on-error` | Runs the queue. Exits 0 when a row fails unless `--fail-on-error` is passed |
 | `migrate_full` | `--database`, `--prompt-before-post`, `--fail-on-error` | Local development only: `migrate_pre_deploy` then `migrate_post_deploy` with no wait, optionally asking in between |
@@ -928,8 +930,6 @@ The maximum is 10,000 rows because the rate counts rows scanned, not written: af
 **Advancing baselines when rules change.** A package upgrade can add or tighten a rule, which CI then reports for historical migrations. Advance the affected apps' baselines; never edit applied migrations.
 
 **Altering a foreign key at the database level is not flagged.** Any `AlterField` on a `ForeignKey` that changes its column (for example making it nullable) makes Django drop and re-create its foreign key constraint, which re-validates every row. The lock timeout bounds how long the statement waits for its lock, not how long validation scans the table once the lock is held. On a large table, use `SeparateDatabaseAndState` and add the constraint `NOT VALID` followed by `VALIDATE CONSTRAINT`.
-
-**A unique field added concurrently is named like `AlterField`'s.** `AddFieldConcurrently` names a unique field's constraint `..._uniq`, as Django does when `AlterField` adds `unique=True`; a plain `AddField(unique=True)` or `CreateModel` leaves PostgreSQL's inline `..._key`. A database built from squashed migrations and one built incrementally can therefore name the same constraint differently, and a database that applied a hand-written `..._key` recipe keeps that name. Django finds unique constraints by introspection, so nothing breaks.
 
 **A failed unique build is dropped before the error is raised.** PostgreSQL keeps enforcing an INVALID unique index left by a failed `CREATE UNIQUE INDEX CONCURRENTLY`, which would reject duplicate writes from the release still serving, so the concurrent operations drop it first. The next run also drops any leftover it finds.
 

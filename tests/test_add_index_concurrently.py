@@ -10,7 +10,8 @@ from tests.migration_helpers import apply_operations
 
 
 @pytest.mark.django_db(transaction=True)
-def test_an_invalid_leftover_index_is_dropped_before_building() -> None:
+def test_an_invalid_leftover_index_is_dropped_before_building(scratch_tables: list[str]) -> None:
+    scratch_tables.append("dm_idx_item")
     state = apply_operations("dm_idx", ProjectState(), [migrations.CreateModel("Item", [("id", models.BigAutoField(primary_key=True)), ("code", models.IntegerField())])])
 
     with connection.cursor() as cursor:

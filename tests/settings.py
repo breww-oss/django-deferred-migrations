@@ -24,4 +24,8 @@ DATABASES = {
     }
 }
 
+# Two more databases on the same server, for tests that migrate one with Django's own migrations and the other with this package's and then compare them. Neither shares a django_migrations table with default, so each can hold a different migration history for the same app.
+DATABASES["native"] = {**DATABASES["default"], "NAME": f"{DATABASES['default']['NAME']}_native"}
+DATABASES["deferred"] = {**DATABASES["default"], "NAME": f"{DATABASES['default']['NAME']}_deferred"}
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
