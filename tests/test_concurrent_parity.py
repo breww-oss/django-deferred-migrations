@@ -29,10 +29,10 @@ def built_by(operations: list[Operation], atomic: bool) -> dict[str, object]:
         for number, operation in enumerate(operations, start=2):
             state = apply_operations("dm_par", state, [operation], atomic=atomic, name=f"{number:04d}")
 
-        return schema_snapshot(["dm_par_child", "dm_par_parent"])
+        return schema_snapshot(["dm_par_child", "dm_par_parent", "dm_par_quoted"])
     finally:
         with connection.cursor() as cursor:
-            cursor.execute("DROP TABLE IF EXISTS dm_par_child, dm_par_parent CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS dm_par_child, dm_par_parent, dm_par_quoted CASCADE")
 
 
 def fk(**options: object) -> models.ForeignKey:
@@ -49,6 +49,7 @@ def one_to_one() -> models.OneToOneField:
 
 LONG_COLUMN = "a_column_name_long_enough_to_push_the_constraint_past_63_bytes"
 MULTIBYTE_COLUMN = "x" + "ü" * 30
+QUOTED_TABLE = migrations.CreateModel("Quoted", [("id", models.BigAutoField(primary_key=True))], options={"db_table": '"dm_par_quoted"'})
 TAKE_KEY_NAME = migrations.RunSQL("CREATE INDEX dm_par_child_code_key ON dm_par_parent (id)", migrations.RunSQL.noop)
 
 
@@ -68,6 +69,8 @@ TAKE_KEY_NAME = migrations.RunSQL("CREATE INDEX dm_par_child_code_key ON dm_par_
         pytest.param([migrations.AddField("child", "code", unique_code(db_column=MULTIBYTE_COLUMN))], [AddFieldConcurrently("child", "code", unique_code(db_column=MULTIBYTE_COLUMN))], id="unique column with a multibyte name"),
         # An unrelated index already holds dm_par_child_code_key, so PostgreSQL falls back to dm_par_child_code_key1.
         pytest.param([TAKE_KEY_NAME, migrations.AddField("child", "code", unique_code())], [TAKE_KEY_NAME, AddFieldConcurrently("child", "code", unique_code())], id="unique column whose name is taken"),
+        # Django leaves a quoted db_table as written, and PostgreSQL names the constraint from the unquoted relation name.
+        pytest.param([QUOTED_TABLE, migrations.AddField("quoted", "code", unique_code())], [QUOTED_TABLE, AddFieldConcurrently("quoted", "code", unique_code())], id="unique column on a quoted db_table"),
         pytest.param([migrations.AddConstraint("child", models.UniqueConstraint(fields=["batch", "kind"], name="dm_par_u"))], [AddConstraintConcurrently("child", models.UniqueConstraint(fields=["batch", "kind"], name="dm_par_u"))], id="unique constraint"),
         pytest.param(
             [migrations.AddConstraint("child", models.UniqueConstraint(fields=["batch", "vessel", "kind"], name="dm_par_nnd", nulls_distinct=False))],

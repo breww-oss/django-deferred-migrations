@@ -107,8 +107,11 @@ def object_name(table: str, column: str, label: str) -> str:
 
 
 # The name PostgreSQL gives the constraint when AddField writes UNIQUE inline: ChooseRelationName tries key, key1, key2... until no relation or constraint in the table's schema holds it.
-# A unique index or constraint on exactly this column of this table is not a clash (indkey is an int2vector indexed from 0, so it is compared by element, not as an array): it is this operation's own work from an interrupted run, and re-using its name lets the re-run pick up where it stopped.
+# A plain unique index or constraint on exactly this column of this table is not a clash (indkey is an int2vector indexed from 0, so it is compared by element, not as an array): it is this operation's own work from an interrupted run, and re-using its name lets the re-run pick up where it stopped. A partial or expression index is a clash, since ADD CONSTRAINT ... USING INDEX refuses one.
+# Django leaves a quoted db_table as written, while PostgreSQL names and stores the relation unquoted.
 def inline_unique_name(schema_editor: BaseDatabaseSchemaEditor, table: str, column: str) -> str:
+    table = strip_quotes(table)
+
     for attempt in itertools.count():
         name = object_name(table, column, "key" if attempt == 0 else f"key{attempt}")
 
@@ -123,7 +126,7 @@ def name_taken(schema_editor: BaseDatabaseSchemaEditor, table: str, column: str,
             SELECT EXISTS (
                        SELECT 1 FROM pg_class c
                        WHERE c.relname = %(name)s AND c.relnamespace = t.relnamespace
-                         AND NOT EXISTS (SELECT 1 FROM pg_index i WHERE i.indexrelid = c.oid AND i.indrelid = t.oid AND i.indisunique AND i.indnatts = 1 AND i.indkey[0] = a.attnum)
+                         AND NOT EXISTS (SELECT 1 FROM pg_index i WHERE i.indexrelid = c.oid AND i.indrelid = t.oid AND i.indisunique AND i.indnatts = 1 AND i.indkey[0] = a.attnum AND i.indpred IS NULL AND i.indexprs IS NULL)
                    )
                 OR EXISTS (
                        SELECT 1 FROM pg_constraint co
@@ -135,7 +138,10 @@ def name_taken(schema_editor: BaseDatabaseSchemaEditor, table: str, column: str,
             """,
             {"name": name, "table": table, "column": column},
         )
-        return cursor.fetchone()[0]
+        row = cursor.fetchone()
+
+    # No row means the table is not visible on the search_path, so nothing here can hold the name either.
+    return row is not None and row[0]
 
 
 def attach_unique_index(schema_editor: BaseDatabaseSchemaEditor, table: str, statement: Statement) -> None:

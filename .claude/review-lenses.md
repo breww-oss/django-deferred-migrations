@@ -45,11 +45,12 @@ After fixing findings, re-run the suite and report the count.
 | C: Logic & bugs | never |
 | D: Django & PostgreSQL version compatibility | no production code changed |
 | E: Test quality & effectiveness | no test file and no production code path changed |
-| F: Docs & public contract | no README, public operation, command, setting or check-ID change |
+| F: Docs & public contract | no README, public operation, command, setting, check-ID, safety-check behaviour or shipped-skill change |
 | G: Slop, simplification & house style | a one-or-two-line fix |
 
 Every lens must be told: read surrounding and sibling code freely (`deferred_migrations/` is small,
-so read the whole module a change lives in), but judge only the `+` lines.
+so read the whole module a change lives in), but judge only what the diff changes: added lines and
+removed ones, since a deleted guard is a regression too. Pre-existing code is out of scope.
 
 **Agent A: DDL & lock safety.** Every statement the package runs must be safe on a large, busy
 production table. Hunt for:

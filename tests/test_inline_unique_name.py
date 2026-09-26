@@ -49,6 +49,8 @@ def test_the_name_matches_the_one_postgresql_chooses(table: str, column: str) ->
         pytest.param(lambda name: f"CREATE INDEX {name} ON dm_nm_other (id)", id="an index"),
         pytest.param(lambda name: f"CREATE SEQUENCE {name}", id="a sequence"),
         pytest.param(lambda name: f"ALTER TABLE dm_nm_other ADD CONSTRAINT {name} CHECK (id > 0)", id="a check constraint"),
+        # On the very column being made unique, but partial, so ADD CONSTRAINT ... USING INDEX could not attach it: a clash, not this operation's own leftover.
+        pytest.param(lambda name: f"CREATE UNIQUE INDEX {name} ON dm_nm_t (c) WHERE c > 0", id="a partial unique index on the same column"),
     ],
 )
 @pytest.mark.parametrize("taken", [1, 2])
