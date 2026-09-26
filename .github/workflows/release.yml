@@ -3,6 +3,17 @@ name: release
 on:
   push:
     branches: [main]
+  # A push that modifies .github/workflows starts no workflow run in this repository, so the merge
+  # that lands a workflow change never dispatches the release. This input is the way to release from
+  # such a commit, and the way to force a version the commits do not imply, 1.0.0 in particular:
+  # --major bumps from the latest tag and so ignores major_on_zero.
+  workflow_dispatch:
+    inputs:
+      force_level:
+        description: Force a bump level instead of deriving it from the commits
+        type: choice
+        default: none
+        options: [none, patch, minor, major]
 
 # One release at a time; a second push waits rather than racing to tag.
 concurrency:
@@ -63,11 +74,18 @@ jobs:
 
       - run: uv sync
 
+      # FORCE_LEVEL is empty on a push, so a merge to main still derives the version from the commits.
       - name: Version, changelog, tag, push and GitHub release
         id: release
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: uv run semantic-release -v version
+          FORCE_LEVEL: ${{ inputs.force_level }}
+        run: |
+          if [ -n "$FORCE_LEVEL" ] && [ "$FORCE_LEVEL" != "none" ]; then
+            uv run semantic-release -v version "--$FORCE_LEVEL"
+          else
+            uv run semantic-release -v version
+          fi
 
       # Straight after the release step, and even if it failed: PSR writes released/tag on exit, so a
       # failure after the tag push (e.g. creating the GitHub release) still gets the build to PyPI.
