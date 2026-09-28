@@ -2,6 +2,54 @@
 
 <!-- version list -->
 
+## v1.0.0 (2026-09-28)
+
+### Build System
+
+- Mark the package Production/Stable ahead of 1.0.0
+  ([`cb4bbb3`](https://github.com/breww-oss/django-deferred-migrations/commit/cb4bbb31f91991b4e68053ebbacb672cfbba2f37))
+
+### Chores
+
+- Add a CODEOWNERS file ([#16](https://github.com/breww-oss/django-deferred-migrations/pull/16),
+  [`2e7a49e`](https://github.com/breww-oss/django-deferred-migrations/commit/2e7a49e436da21d63d3f4195d1360599e72b2f5c))
+
+- Have Renovate open PRs for OSV vulnerabilities
+  ([#16](https://github.com/breww-oss/django-deferred-migrations/pull/16),
+  [`2e7a49e`](https://github.com/breww-oss/django-deferred-migrations/commit/2e7a49e436da21d63d3f4195d1360599e72b2f5c))
+
+- **deps**: Lock file maintenance
+  ([#18](https://github.com/breww-oss/django-deferred-migrations/pull/18),
+  [`b8cca05`](https://github.com/breww-oss/django-deferred-migrations/commit/b8cca05558bd3483a6b422b8708471cc7165ff82))
+
+- **deps**: Update click to 8.5.0 to fix PYSEC-2026-2132
+  ([#16](https://github.com/breww-oss/django-deferred-migrations/pull/16),
+  [`2e7a49e`](https://github.com/breww-oss/django-deferred-migrations/commit/2e7a49e436da21d63d3f4195d1360599e72b2f5c))
+
+- **deps**: Update pre-commit hook alessandrojcm/commitlint-pre-commit-hook to v9.27.0
+  ([#17](https://github.com/breww-oss/django-deferred-migrations/pull/17),
+  [`373630c`](https://github.com/breww-oss/django-deferred-migrations/commit/373630c81a1dc1e7387bc6e4e7bdfdf7076987cf))
+
+### Continuous Integration
+
+- Attach SLSA build provenance to each GitHub release
+  ([#16](https://github.com/breww-oss/django-deferred-migrations/pull/16),
+  [`2e7a49e`](https://github.com/breww-oss/django-deferred-migrations/commit/2e7a49e436da21d63d3f4195d1360599e72b2f5c))
+
+- **deps**: Update actions/create-github-app-token action to v3
+  ([#14](https://github.com/breww-oss/django-deferred-migrations/pull/14),
+  [`f126f82`](https://github.com/breww-oss/django-deferred-migrations/commit/f126f82dab3c02a9b5fd7f8c6208ffc0ee61ea38))
+
+### Documentation
+
+- Add security, contributing and pull request templates
+  ([#20](https://github.com/breww-oss/django-deferred-migrations/pull/20),
+  [`39202d3`](https://github.com/breww-oss/django-deferred-migrations/commit/39202d361d2787e8b0aef7cf9f010ecc45567eec))
+
+- Add the logo to the README, with light and dark variants
+  ([`bcb1daf`](https://github.com/breww-oss/django-deferred-migrations/commit/bcb1dafe7846a977e6b9b3646b3a495341b994d1))
+
+
 ## v0.2.0 (2026-09-26)
 
 ### Bug Fixes
