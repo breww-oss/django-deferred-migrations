@@ -1,6 +1,9 @@
 module.exports = {
     extends: ['@commitlint/config-angular'],
     rules: {
+        // config-angular allows 72, which Renovate's generated headers exceed for long dependency
+        // names, e.g. "chore(deps): update pre-commit hook alessandrojcm/commitlint-pre-commit-hook to v9.27.0".
+        'header-max-length': [2, 'always', 100],
         'type-enum': [
             2,
             'always',
