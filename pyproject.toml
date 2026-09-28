@@ -18,7 +18,7 @@ dependencies = [
     "psycopg>=3",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Web Environment",
     "Framework :: Django",
     "Framework :: Django :: 5.2",
@@ -94,8 +94,8 @@ force-single-line = true
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
-# 0.x is the intended starting point: the first release is 0.1.0, and while on 0.x a
-# BREAKING CHANGE bumps the minor version rather than jumping to 1.0.0.
+# Only relevant to the 0.x releases before 1.0.0: there, a BREAKING CHANGE bumped the minor
+# version rather than jumping to 1.0.0. From 1.0.0 on, a BREAKING CHANGE bumps the major.
 allow_zero_version = true
 major_on_zero = false
 # A non-releasing type with [skip ci], so the release commit never triggers another release.
