@@ -1,0 +1,3 @@
+# Every change to main needs an approving review from a code owner, once the "Protect main"
+# ruleset requires one.
+* @violuke
