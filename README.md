@@ -1,3 +1,11 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/breww-oss/django-deferred-migrations/main/.github/assets/logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/breww-oss/django-deferred-migrations/main/.github/assets/logo-light.svg">
+    <img alt="django-deferred-migrations by Breww" src="https://raw.githubusercontent.com/breww-oss/django-deferred-migrations/main/.github/assets/logo-light.svg" width="340">
+  </picture>
+</p>
+
 # django-deferred-migrations
 
 [![Tests](https://github.com/breww-oss/django-deferred-migrations/actions/workflows/test.yml/badge.svg)](https://github.com/breww-oss/django-deferred-migrations/actions/workflows/test.yml)
