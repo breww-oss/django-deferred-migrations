@@ -55,6 +55,16 @@
       "semanticCommitScope": "deps"
     },
     {
+      "description": "The uv version in release.yml is tracked by both the custom regex manager (uv) and the github-actions manager (astral-sh/uv), so both land in one PR rather than two competing ones.",
+      "matchPackageNames": [
+        "uv",
+        "astral-sh/uv"
+      ],
+      "groupName": "uv",
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "deps"
+    },
+    {
       "description": "The ruff pre-commit hook and the pinned ruff dev dependency must stay on the same version.",
       "matchPackageNames": [
         "ruff",
