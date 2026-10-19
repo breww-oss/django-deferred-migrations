@@ -46,9 +46,11 @@
       "semanticCommitScope": "deps"
     },
     {
+      "description": "Action updates are grouped into one PR to cut down on noise.",
       "matchManagers": [
         "github-actions"
       ],
+      "groupName": "GitHub Actions",
       "semanticCommitType": "ci",
       "semanticCommitScope": "deps"
     },
