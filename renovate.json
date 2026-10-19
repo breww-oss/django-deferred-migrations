@@ -46,10 +46,22 @@
       "semanticCommitScope": "deps"
     },
     {
+      "description": "Action updates are grouped into one PR to cut down on noise.",
       "matchManagers": [
         "github-actions"
       ],
+      "groupName": "GitHub Actions",
       "semanticCommitType": "ci",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "description": "The uv version in release.yml is tracked by both the custom regex manager (uv) and the github-actions manager (astral-sh/uv), so both land in one PR rather than two competing ones.",
+      "matchPackageNames": [
+        "uv",
+        "astral-sh/uv"
+      ],
+      "groupName": "uv",
+      "semanticCommitType": "chore",
       "semanticCommitScope": "deps"
     },
     {
