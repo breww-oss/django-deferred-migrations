@@ -62,7 +62,7 @@ dev = [
     "ruff==0.17.3",
     "rich>=15",
     "python-semantic-release>=10,<11",
-    "zizmor==1.31.1",
+    "zizmor==1.32.0",
 ]
 
 [tool.pytest.ini_options]
